@@ -57,7 +57,7 @@
 
   /* Typing effect */
   (function typer() {
-    const el = $("#termTyped"), words = (card.learning || []).filter(Boolean);
+    const el = $("#termTyped"), words = (card.building || card.learning || []).filter(Boolean);
     if (!words.length) return;
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = `"${words[0]}"`; return; }
     let w = 0, i = 0, del = false;
@@ -85,13 +85,22 @@
   const tabs = $("#skillTabs"), grid = $("#skillGrid");
   const tabNames = ["All", ...groups.map((g) => g.group)];
   tabs.innerHTML = tabNames.map((n, i) => `<button class="tab" role="tab" aria-selected="${i === 0}" data-g="${esc(n)}">${esc(n)}</button>`).join("");
+  const bold = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const skillItem = (it, i) => {
+    const o = typeof it === "string" ? { name: it } : it;
+    const lvl = Math.max(0, Math.min(5, Number(o.level) || 0));
+    const dots = lvl ? `<span class="chip__lvl" aria-label="${lvl} out of 5">${Array.from({ length: 5 }, (_, k) => `<i class="${k < lvl ? "on" : ""}"></i>`).join("")}</span>` : "";
+    return `<li class="chip" style="animation-delay:${i * 18}ms">${esc(o.name)}${dots}</li>`;
+  };
   function renderSkills(g) {
-    const list = groups.filter((x) => g === "All" || x.group === g).flatMap((x) => x.items.map((it) => ({ ...it, group: x.group })));
-    grid.innerHTML = list.map((s, i) => {
-      const lvl = Math.max(0, Math.min(5, Number(s.level) || 0));
-      const bars = Array.from({ length: 5 }, (_, k) => `<i class="${k < lvl ? "on" : ""}" style="animation-delay:${i * 30 + k * 60}ms"></i>`).join("");
-      return `<div class="skill" style="animation-delay:${i * 30}ms"><div class="skill__top"><span class="skill__name">${esc(s.name)}</span>${g === "All" ? `<span class="skill__group">${esc(s.group)}</span>` : ""}</div><div class="meter" role="img" aria-label="${lvl} out of 5">${bars}</div></div>`;
-    }).join("") || `<div class="empty">Add skills in js/content.js</div>`;
+    const list = groups.filter((x) => g === "All" || x.group === g);
+    grid.classList.toggle("skills--single", g !== "All");
+    grid.innerHTML = list.map((x, gi) => `
+      <div class="skill-group" style="animation-delay:${gi * 60}ms">
+        <div class="skill-group__head"><h3>${esc(x.title || x.group)}</h3><span class="mono">${String((x.items || []).length).padStart(2, "0")}</span></div>
+        <ul class="chips">${(x.items || []).map(skillItem).join("")}</ul>
+        ${x.note ? `<p class="skill-group__note">${esc(x.note)}</p>` : ""}
+      </div>`).join("") || `<div class="empty">Add skills in js/content.js</div>`;
   }
   tabs.addEventListener("click", (e) => {
     const b = e.target.closest(".tab"); if (!b) return;
@@ -102,25 +111,32 @@
 
   /* ---------- Experience ---------- */
   const chev = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
-  $("#timeline").innerHTML = (S.experience || []).map((j, i) => `
+  $("#timeline").innerHTML = (S.experience || []).map((j, i) => {
+    const roles = j.roles || [{ title: j.role, period: j.period }];
+    const sections = j.sections || [{ items: j.highlights || [] }];
+    return `
     <li class="job reveal ${i === 0 ? "is-open" : ""}">
       <button class="job__btn" aria-expanded="${i === 0}" aria-controls="job-${i}">
-        <span><span class="job__role">${esc(j.role)}</span><br><span class="job__co">${esc(j.company)}</span>${j.location ? `<span class="muted"> · ${esc(j.location)}</span>` : ""}</span>
-        <span class="job__period">${esc(j.period)}</span>
+        <span class="job__main">
+          <span class="job__co-line"><span class="job__co">${esc(j.company)}</span>${j.location ? `<span class="muted"> · ${esc(j.location)}</span>` : ""}</span>
+          ${roles.map((r) => `<span class="job__roleline"><span class="job__role">${esc(r.title)}</span><span class="job__period">${esc(r.period)}</span></span>`).join("")}
+        </span>
         <span class="job__chev" aria-hidden="true">${chev}</span>
         ${j.summary ? `<span class="job__sum">${esc(j.summary)}</span>` : ""}
       </button>
       <div class="job__panel" id="job-${i}"><div><div class="job__content">
-        <ul>${(j.highlights || []).map((h) => `<li>${esc(h)}</li>`).join("")}</ul>
+        ${sections.map((sec) => `${sec.heading ? `<h4 class="job__h">${esc(sec.heading)}</h4>` : ""}<ul>${(sec.items || []).map((h) => `<li>${bold(h)}</li>`).join("")}</ul>`).join("")}
         <div class="tags">${(j.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
       </div></div></div>
-    </li>`).join("");
+    </li>`;
+  }).join("");
   $("#timeline").addEventListener("click", (e) => {
     const b = e.target.closest(".job__btn"); if (!b) return;
     const li = b.parentElement, open = !li.classList.contains("is-open");
     li.classList.toggle("is-open", open); b.setAttribute("aria-expanded", open);
   });
-  $("#education").innerHTML = (S.education || []).map((e) =>
+  if (!(S.education || []).length) $("#education").remove();
+  else $("#education").innerHTML = (S.education || []).map((e) =>
     `<div class="edu__item"><strong>${esc(e.title)}</strong><span>${esc(e.org)}${e.period ? " · " + esc(e.period) : ""}</span></div>`).join("");
 
   /* ---------- Projects ---------- */
